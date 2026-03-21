@@ -1,4 +1,4 @@
-name = "cinema-iraq-python"
+name = "api"
 main = "api.py"
 compatibility_date = "2024-03-21"
 compatibility_flags = ["python_workers"]
