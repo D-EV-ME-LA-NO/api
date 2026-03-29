@@ -1,0 +1,15 @@
+{
+  "name": "streaming-bypass-api",
+  "version": "1.0.0",
+  "description": "Bypass Captcha for StreamingNow",
+  "main": "index.js",
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^21.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
