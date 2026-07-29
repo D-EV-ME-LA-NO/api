@@ -23,18 +23,44 @@ if (!$slug && !$drama_id) {
 }
 
 // ── If we have drama_id, try cached video URL first ───────────────────────────
-// Video URLs expire (~30 min based on auth_key), so we don't cache them long
 $video_cache_key = ND_CACHE_S . '/stream_' . ($slug ?: 'id' . $drama_id) . '_ep' . $episode . '_' . $lang . '.json';
-if (is_file($video_cache_key) && (time() - filemtime($video_cache_key)) < 300) { // 5 min cache
+if (is_file($video_cache_key) && (time() - filemtime($video_cache_key)) < 300) {
     $cached = json_decode(file_get_contents($video_cache_key), true);
     if (!empty($cached['video_url'])) { echo json_encode($cached); exit; }
 }
 
-// ── Fetch watch page ──────────────────────────────────────────────────────────
-$watch_url = ND_BASE_S . '/detail/watch/' . $slug . '/' . $episode . '?lang=' . $lang;
-
 $jar = ND_CACHE_S . '/cookies.txt';
-$ch  = curl_init($watch_url);
+
+// ── Cookie warm-up (visit homepage first to get Laravel session) ──────────────
+if (!is_file($jar) || (time() - filemtime($jar)) > 5400) {
+    $wch = curl_init(ND_BASE_S . '/?lang=' . $lang . '&tab-provider=bibishort');
+    curl_setopt_array($wch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 12,
+        CURLOPT_ENCODING       => '',
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_COOKIEFILE     => $jar,
+        CURLOPT_COOKIEJAR      => $jar,
+        CURLOPT_HTTPHEADER     => [
+            'User-Agent: ' . ND_UA_S,
+            'Accept: text/html,application/xhtml+xml,*/*;q=0.8',
+            'Accept-Language: ar-IQ,ar;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding: gzip, deflate, br',
+            'Upgrade-Insecure-Requests: 1',
+            'Sec-Fetch-Site: none',
+            'Sec-Fetch-Mode: navigate',
+            'Sec-Fetch-Dest: document',
+        ],
+    ]);
+    curl_exec($wch);
+    curl_close($wch);
+    @touch($jar);
+}
+
+// ── Fetch watch page ──────────────────────────────────────────────────────────
+$watch_url = ND_BASE_S . '/detail/watch/' . $slug . '/' . $episode . '?lang=' . $lang . '&from=home';
+
+$ch = curl_init($watch_url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT        => 20,
@@ -44,12 +70,16 @@ curl_setopt_array($ch, [
     CURLOPT_COOKIEFILE     => $jar,
     CURLOPT_COOKIEJAR      => $jar,
     CURLOPT_HTTPHEADER     => [
-        'User-Agent: '      . ND_UA_S,
+        'User-Agent: '           . ND_UA_S,
         'Accept: text/html,application/xhtml+xml,*/*;q=0.8',
         'Accept-Language: ar-IQ,ar;q=0.9,en-US;q=0.8,en;q=0.7',
         'Accept-Encoding: gzip, deflate, br',
-        'Referer: '         . ND_BASE_S . '/detail/watch/' . $slug . '?lang=' . $lang,
+        'Referer: '              . ND_BASE_S . '/detail/watch/' . $slug . '?lang=' . $lang . '&from=home',
         'Upgrade-Insecure-Requests: 1',
+        'Sec-Fetch-Site: same-origin',
+        'Sec-Fetch-Mode: navigate',
+        'Sec-Fetch-User: ?1',
+        'Sec-Fetch-Dest: document',
     ],
 ]);
 $html = (string)curl_exec($ch);
