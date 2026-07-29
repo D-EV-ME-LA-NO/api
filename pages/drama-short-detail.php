@@ -158,6 +158,7 @@ include __DIR__ . '/../includes/header.php';
     })();
     </script>
   <?php else: ?>
+    <!-- No slug yet — fetch detail via JS to get slug + episode count -->
     <div class="ds-loading-detail" id="dsDetailLoader">
       <i class="fa-solid fa-circle-notch fa-spin"></i> Loading drama details...
     </div>
@@ -171,6 +172,24 @@ include __DIR__ . '/../includes/header.php';
       const bid   = <?= json_encode($book_id) ?>;
       const lang  = <?= json_encode($lang) ?>;
       const title = <?= json_encode($raw_title) ?>;
+
+      function renderEpisodes(total, slug) {
+        const grid = document.getElementById('dsEpisodesGrid');
+        const sec  = document.getElementById('dsEpisodesSection');
+        if (!grid || !sec) return;
+        sec.style.display = '';
+        let html = '';
+        for (let ep = 1; ep <= total; ep++) {
+          const url = '/drama-short/watch/' + encodeURIComponent(prov) + '/' + encodeURIComponent(bid) + '/' + ep
+                    + '?lang=' + encodeURIComponent(lang) + '&slug=' + encodeURIComponent(slug || '');
+          html += `<a class="ds-ep-card" href="${url}">
+            <div class="ds-ep-num"><i class="fa-solid fa-play ds-ep-play"></i><span>${ep}</span></div>
+            <div class="ds-ep-label">Episode ${ep}</div>
+          </a>`;
+        }
+        grid.innerHTML = html;
+      }
+
       fetch('/api/drama-short/detail?provider=' + encodeURIComponent(prov)
           + '&book_id=' + encodeURIComponent(bid)
           + '&lang=' + encodeURIComponent(lang)
@@ -178,25 +197,56 @@ include __DIR__ . '/../includes/header.php';
         .then(r => r.json())
         .then(d => {
           document.getElementById('dsDetailLoader')?.remove();
-          if (!d.ok) return;
-          const total = d.total_episodes || 12;
+          // API now always returns ok:true — use whatever data came back
+          const total = d.total_episodes || 30;
           const slug  = d.slug || '';
-          const grid  = document.getElementById('dsEpisodesGrid');
-          const sec   = document.getElementById('dsEpisodesSection');
-          if (!grid || !sec) return;
-          sec.style.display = '';
-          let html = '';
-          for (let ep = 1; ep <= total; ep++) {
-            const url = '/drama-short/watch/' + encodeURIComponent(prov) + '/' + encodeURIComponent(bid) + '/' + ep
-                      + '?lang=' + encodeURIComponent(lang) + '&slug=' + encodeURIComponent(slug);
-            html += `<a class="ds-ep-card" href="${url}">
-              <div class="ds-ep-num"><i class="fa-solid fa-play ds-ep-play"></i><span>${ep}</span></div>
-              <div class="ds-ep-label">Episode ${ep}</div>
-            </a>`;
+
+          // Update poster if available and not already shown
+          if (d.poster) {
+            const posterEl = document.querySelector('.ds-detail-poster img');
+            if (!posterEl) {
+              const wrap = document.querySelector('.ds-detail-poster');
+              if (wrap) { wrap.innerHTML = `<img src="${d.poster}" alt="" />`; wrap.style.display = ''; }
+            }
           }
-          grid.innerHTML = html;
+          // Update description if available
+          if (d.description) {
+            let descEl = document.querySelector('.ds-detail-desc');
+            if (!descEl) {
+              const info = document.querySelector('.ds-detail-info');
+              if (info) {
+                descEl = document.createElement('p');
+                descEl.className = 'ds-detail-desc';
+                info.appendChild(descEl);
+              }
+            }
+            if (descEl && !descEl.textContent.trim()) descEl.textContent = d.description;
+          }
+          // Update episode count meta
+          if (d.total_episodes) {
+            const metaEl = document.querySelector('.ds-detail-meta');
+            if (metaEl && !metaEl.querySelector('.ep-count')) {
+              const span = document.createElement('span');
+              span.className = 'ep-count';
+              span.innerHTML = `<i class="fa-solid fa-tv"></i> ${d.total_episodes} Episode${d.total_episodes !== 1 ? 's' : ''}`;
+              metaEl.prepend(span);
+            }
+          }
+          // Update Watch Ep1 button slug
+          const watchBtn = document.querySelector('a.btn-primary[href*="/drama-short/watch/"]');
+          if (watchBtn && slug) {
+            const url = '/drama-short/watch/' + encodeURIComponent(prov) + '/' + encodeURIComponent(bid) + '/1'
+                      + '?lang=' + encodeURIComponent(lang) + '&slug=' + encodeURIComponent(slug);
+            watchBtn.href = url;
+          }
+
+          renderEpisodes(total, slug);
         })
-        .catch(() => { document.getElementById('dsDetailLoader')?.remove(); });
+        .catch(() => {
+          document.getElementById('dsDetailLoader')?.remove();
+          // Even on network error — show 30 default episodes so page is usable
+          renderEpisodes(30, '');
+        });
     })();
     </script>
   <?php endif; ?>

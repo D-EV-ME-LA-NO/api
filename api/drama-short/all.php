@@ -91,6 +91,30 @@ function ds_all_parse_provider(string $provider, ?string $raw): array {
         foreach (($sec['items'] ?? []) as $it) {
             $it['_provider'] = $provider;
             $it['_section']  = $sec['tab_label'] ?? '';
+
+            // ── Cache slug from watch_url/url for use by detail.php ──────────
+            $item_id = $it['id'] ?? '';
+            $parts   = explode(':', $item_id);
+            $bid     = $parts[1] ?? '';
+            if (!$bid) {
+                preg_match('/book_id=(\d+)/', $it['url'] ?? $it['watch_url'] ?? '', $bm);
+                $bid = $bm[1] ?? '';
+            }
+            if ($bid) {
+                $slug_file = DS_ALL_CACHE . '/slug_' . $provider . '_' . $bid . '.txt';
+                if (!is_file($slug_file)) {
+                    // Try watch_url field first, then url
+                    $wurl = $it['watch_url'] ?? $it['url'] ?? '';
+                    if ($wurl && preg_match('#/detail/watch/([^/?&#\s]+)#', $wurl, $sm)) {
+                        @file_put_contents($slug_file, $sm[1]);
+                        $it['_slug'] = $sm[1];
+                    } elseif (!empty($it['slug'])) {
+                        @file_put_contents($slug_file, $it['slug']);
+                        $it['_slug'] = $it['slug'];
+                    }
+                }
+            }
+
             $items[] = $it;
         }
     }
