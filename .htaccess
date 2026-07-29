@@ -1,0 +1,9 @@
+RewriteEngine On
+RewriteBase /
+
+# السماح بالوصول المباشر للملفات والصور
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# توجيه الكل إلى index.php
+RewriteRule ^(.*)$ index.php [QSA,L]
