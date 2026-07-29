@@ -15,7 +15,8 @@
  *  C. title="Episode N" attributes    ← count max N
  *  D. fallback: 30
  */
-header('Content-Type: application/json');
+// NOTE: When called internally (from pages via include) pass internal=1 to avoid sending JSON headers.
+if (empty($_GET['internal'])) header('Content-Type: application/json');
 require_once __DIR__ . '/../../config.php';
 
 define('ND_UA_D',    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36');
@@ -40,7 +41,7 @@ $cache_key = ND_CACHE_D . '/detail_' . md5($cache_id . $lang) . '.json';
 
 if (is_file($cache_key) && (time() - filemtime($cache_key)) < 7200) {
     $data = json_decode(file_get_contents($cache_key), true);
-    if ($data && !empty($data['ok'])) { echo json_encode($data); exit; }
+    if ($data && !empty($data['ok'])) { echo json_encode($data); if (empty($_GET['internal'])) exit; }
 }
 
 $jar = ND_CACHE_D . '/cookies.txt';
@@ -197,7 +198,7 @@ if ($slug) {
     if ($res['code'] === 200 && strlen($res['body']) > 500) {
         $html = $res['body'];
 
-        // ── Title ─────────────────────────────────────────────────────────────
+        // ── Title ─────────────────────────────────────────────────────────
         if (preg_match('/<h1[^>]*class="[^"]*title[^"]*"[^>]*>\s*([^<]+)/i', $html, $m)) {
             $drama_title = trim(html_entity_decode($m[1], ENT_QUOTES));
         } elseif (preg_match('/<h1[^>]*>([^<]+)<\/h1>/i', $html, $m)) {
@@ -214,11 +215,11 @@ if ($slug) {
             $poster = $m[1];
         }
         // Poster from narto's own /assets/poster/ path (relative → absolute)
-        if (!$poster && preg_match('#["\'](?:https://narto-drama\.com)?(/assets/poster/[^\s"\'<>]+)#i', $html, $m)) {
+        if (!$poster && preg_match('#["\'](?:https://narto-drama\.com)?(/assets/poster/[^\s"'<>]+)#i', $html, $m)) {
             $poster = 'https://narto-drama.com' . $m[1];
         }
         // Poster from crazytalkai CDN cover
-        if (!$poster && preg_match('/cover-prod\.crazytalkai\.com\/[^\s"\'<>]+/', $html, $m)) {
+        if (!$poster && preg_match('/cover-prod\.crazytalkai\.com\/[^"]+/', $html, $m)) {
             $poster = 'https://' . $m[0];
         }
 
@@ -230,7 +231,7 @@ if ($slug) {
             $desc = trim($raw_desc);
         }
 
-        // ── Drama ID ─────────────────────────────────────────────────────────
+        // ── Drama ID ────────────────────────────────────────────────────────
         if (preg_match('/media-prod\.crazytalkai\.com\/drama_(\d+)\//i', $html, $m)) {
             $drama_id = (int)$m[1];
         } elseif (preg_match('/["\']?drama_id["\']?\s*[=:]\s*["\']?(\d+)/i', $html, $m)) {
@@ -307,4 +308,10 @@ $result = [
 if ($slug) {
     @file_put_contents($cache_key, json_encode($result));
 }
-echo json_encode($result);
+
+// If this is internal include, avoid echoing JSON headers twice — just return the JSON string
+if (!empty($_GET['internal'])) {
+    echo json_encode($result);
+} else {
+    echo json_encode($result);
+}
